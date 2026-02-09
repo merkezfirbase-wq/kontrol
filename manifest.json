@@ -1,6 +1,6 @@
 {
-  "name": "qr Devriye",
-  "short_name": "qr Devriye",
+  "name": "Güvenlik Kontrol",
+  "short_name": "Güvenlik Kontrol",
   "description": "QR kodlu güvenlik denetleme ve raporlama sistemi",
   "start_url": "index.html",
   "scope": "./",
@@ -38,3 +38,4 @@
     }
   ]
 }
+
