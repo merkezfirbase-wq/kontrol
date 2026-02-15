@@ -2,7 +2,7 @@
    CGA PWA SERVICE WORKER
    ================================ */
 
-const CACHE_NAME = "cga-pwa-v2"; 
+const CACHE_NAME = "cga-pwa-v3"; 
 // 🔴 HER GÜNCELLEMEDE v1 → v2 → v3 DEĞİŞTİR
 
 const CORE_FILES = [
@@ -59,4 +59,5 @@ self.addEventListener("fetch", (event) => {
       })
   );
 });
+
 
