@@ -421,6 +421,8 @@ async function renderDevriyeHistory(){
 
 if(d.status.toLowerCase().includes('eksik')){
   let kaydedilenNoktalar = d.points || [];
+  kaydedilenNoktalar = kaydedilenNoktalar.map(p => typeof p==="string" ? p : p.name);
+
 let qrRefPath;
 
 if(d.block){
