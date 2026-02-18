@@ -342,146 +342,158 @@ onValue(ref(db,'nobetRecords'),snapshot=>{
 });
 
 // === DEVRIYE GEÇMİŞİ ===
-let allDevriyeHistory=[], tumNoktalar=[];
-onValue(ref(db,'qrCodes'), snapshot=>{ 
-  const val=snapshot.val(); 
-  tumNoktalar=[]; 
-  if(val) for(const key in val){ const qr=val[key]; if(qr.name) tumNoktalar.push(qr.name); }
-});
-filterDate.value=getTurkeyToday();
-onValue(ref(db,'devriyeHistory'), snapshot=>{
-  const val=snapshot.val(); allDevriyeHistory=[];
-  if(val){
-    for(const userKey in val){
-      const userRecords=val[userKey];
-      for(const recordKey in userRecords){ 
-        const record=userRecords[recordKey]; 
-     allDevriyeHistory.push({
-  ...record,
-  userName: record.name,
-  devriyeId: record.timestamp   // 🔴 SABİT ve TEKİL ID
+// === YENİ VE VERİMLİ SİSTEM BAŞLANGICI ===
+let allDevriyeHistory = [], tumNoktalar = [];
+
+// 1️⃣ QR noktalarını al (Statik noktalar için bir kez çalışır)
+get(ref(db,'qrCodes')).then(snapshot => {
+  const val = snapshot.val();
+  if(val) {
+    for(const key in val) {
+      if(val[key].name) tumNoktalar.push(val[key].name);
+    }
+  }
 });
 
-      }
-    } 
-    allDevriyeHistory.sort((a,b)=>b.timestamp-a.timestamp);
-  }
-  renderDevriyeHistory();
+// 2️⃣ Tarih bazlı veri çekme fonksiyonu (Sadece seçilen günü indirir)
+async function loadDevriyeByDate(selectedDate) {
+    if (!selectedDate) return;
+    
+    devriyeHistoryEl.innerHTML = '<div style="text-align:center;">Yükleniyor...</div>';
+    allDevriyeHistory = []; 
+
+    const historyRef = ref(db, `devriyeHistory/${selectedDate}`);
+    
+    try {
+        const snapshot = await get(historyRef); 
+        if (snapshot.exists()) {
+            const users = snapshot.val();
+            for (const userKey in users) {
+                const userRecords = users[userKey];
+                for (const recordKey in userRecords) {
+                    const record = userRecords[recordKey];
+                    allDevriyeHistory.push({
+                        ...record,
+                        userName: record.name,
+                        devriyeId: recordKey, 
+                        dateKey: selectedDate
+                    });
+                }
+            }
+            allDevriyeHistory.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        }
+        renderDevriyeHistory(); 
+    } catch (err) {
+        console.error("Hata:", err);
+        devriyeHistoryEl.innerHTML = "Veri yüklenemedi.";
+    }
+}
+
+// 3️⃣ Tetikleyiciler: Sayfa açılışı ve Tarih değişimi
+filterDate.value = getTurkeyToday(); // Takvimi bugüne ayarla
+loadDevriyeByDate(filterDate.value); // Bugünün verisini getir
+
+filterDate.addEventListener('change', (e) => {
+    loadDevriyeByDate(e.target.value); // Tarih değiştikçe sadece o günü getir
 });
-filterDate.addEventListener('change', renderDevriyeHistory);
+// === YENİ SİSTEM BİTİŞİ ===
+
+// 5️⃣ Devriye süresini hesapla
 function hesaplaDevriyeSuresi(start, end){
   if(!start || !end) return '';
-
   const [sh, sm] = start.split(':').map(Number);
   const [eh, em] = end.split(':').map(Number);
+  let startMinutes = sh*60 + sm;
+  let endMinutes = eh*60 + em;
 
-  let startMinutes = sh * 60 + sm;
-  let endMinutes = eh * 60 + em;
-
-  // Gece sarkması (23:30 → 01:00 gibi)
-  if(endMinutes < startMinutes){
-    endMinutes += 24 * 60;
-  }
+  // Gece sarkması
+  if(endMinutes < startMinutes) endMinutes += 24*60;
 
   const diff = endMinutes - startMinutes;
-  const hours = Math.floor(diff / 60);
-  const minutes = diff % 60;
+  const hours = Math.floor(diff/60);
+  const minutes = diff%60;
 
   let sonuc = 'Toplam Devriye Süre: ';
-  if(hours > 0) sonuc += `${hours} saat `;
+  if(hours>0) sonuc += `${hours} saat `;
   sonuc += `${minutes} dakika`;
-
   return sonuc;
 }
 
-
+// 6️⃣ Devriye geçmişini render et
 async function renderDevriyeHistory(){
-  const selectedDate = filterDate.value;
-  devriyeHistoryEl.innerHTML = '';
-
-  const filtered = allDevriyeHistory.filter(d => {
-    const ts = d.timestamp;
-    const dateObj = new Date(ts);
-    const utc = dateObj.getTime() + (dateObj.getTimezoneOffset() * 60000);
-    const turkeyTime = new Date(utc + 3*60*60*1000);
-    const year = turkeyTime.getFullYear();
-    const month = String(turkeyTime.getMonth()+1).padStart(2,'0');
-    const day = String(turkeyTime.getDate()).padStart(2,'0');
-    const devriyeDateStr = `${year}-${month}-${day}`;
-    return selectedDate ? devriyeDateStr === selectedDate : true;
-  });
+devriyeHistoryEl.innerHTML = '';
+  const filtered = allDevriyeHistory; // Filtreleme zaten yapıldı
 
   for(const d of filtered){
     const div = document.createElement('div'); 
     div.classList.add('devriye-item');
+
     const left = document.createElement('div'); 
     left.classList.add('devriye-left');
 
     let pointsHTML = '';
 
-if(d.status.toLowerCase().includes('eksik')){
-  let kaydedilenNoktalar = d.points || [];
-  kaydedilenNoktalar = kaydedilenNoktalar.map(p => typeof p==="string" ? p : p.name);
+    // Eksik devriyeler için eksik noktaları göster
+    if(d.status.toLowerCase().includes('eksik')){
+      // 1️⃣ Devriyede okutulan noktalar
+      let kaydedilenNoktalar = d.points || [];
+      kaydedilenNoktalar = kaydedilenNoktalar.map(p => typeof p === "string" ? p : p.name);
 
-let qrRefPath;
+      // 2️⃣ Bu devriyeye ait tüm noktalar
+      let qrNoktalar = [];
 
-if(d.block){
-  // d.block değerini aynen al, sonuna "qrcodes" ekle
-  const blockFieldName = d.block + 'qrcodes';
-
-  const blockSnapshot = await get(ref(db, blockFieldName));
-  if(blockSnapshot.exists()){
-    qrRefPath = blockFieldName; // blok bazlı QR
-  } else {
-    qrRefPath = 'qrCodes';      // yoksa genel QR
-  }
-} else {
-  qrRefPath = 'qrCodes';        // block yoksa genel
-}
-
-
-
-  try{
-    const snapshot = await get(ref(db, qrRefPath));
-    let blokNoktalar = [];
+      if(d.block){
+  const blockFieldName = d.block + 'qrcodes'; // A Blok -> A Blokqrcodes
+  try {
+    const snapshot = await get(ref(db, blockFieldName));
     if(snapshot.exists()){
       const val = snapshot.val();
-      for(const key in val){ if(val[key].name) blokNoktalar.push(val[key].name); }
+      qrNoktalar = [];
+      for(const key in val){
+        if(val[key].name) qrNoktalar.push(val[key].name);
+      }
     }
-    const isaretlenmeyen = blokNoktalar.filter(p => !kaydedilenNoktalar.includes(p));d.missingPoints = isaretlenmeyen;
-    pointsHTML = `<div class="devriye-points"><strong>Eksik Noktalar:</strong> ${isaretlenmeyen.join(', ')}</div>`;
-  }catch(err){ console.error('QR noktaları alınamadı:', err); }
-}
-
-const toplamSure = hesaplaDevriyeSuresi(d.start, d.end);
-
-left.innerHTML = `
-  <div><strong>Güvenlik:</strong> ${d.userName}</div>
-  <div><strong>Tarih:</strong> ${d.displayDate}</div>
-  <div><strong>Başlangıç:</strong> ${d.start}</div>
-  <div><strong>Bitiş:</strong> ${d.end}</div>
-
-  <div style="margin-top:6px; font-weight:600; color:#f1c40f;">
-    ⏱ ${toplamSure}
-  </div>
-
-  ${pointsHTML}
-`;
-
-
-  const statusDiv = document.createElement('div'); 
-statusDiv.classList.add('devriye-status'); 
-statusDiv.classList.add(d.status.toLowerCase().includes('tam') ? 'tam' : 'eksik'); 
-statusDiv.innerHTML = `<span style="cursor:pointer;text-decoration:underline;">${d.status}</span>`;
-
-// Sadece eksik devriyelerde modal açılsın
-if(d.status.toLowerCase().includes('eksik')){
-  statusDiv.onclick = ()=> eksikDevriyeModalAc(d);
-} else {
-  statusDiv.onclick = null; // tam devriyelerde tıklamayı kapat
+  } catch(err){
+    console.error('Blok QR alınamadı:', err);
+  }
 }
 
 
+      // Eğer blok yoksa tüm noktaları al
+      if(qrNoktalar.length === 0) qrNoktalar = tumNoktalar.slice();
+
+      // 3️⃣ Eksik noktaları hesapla
+      const isaretlenmeyen = qrNoktalar.filter(p => !kaydedilenNoktalar.includes(p));
+      d.missingPoints = isaretlenmeyen;
+
+      pointsHTML = `<div class="devriye-points"><strong>Eksik Noktalar:</strong> ${isaretlenmeyen.join(', ')}</div>`;
+    }
+
+    // Toplam devriye süresini hesapla
+    const toplamSure = hesaplaDevriyeSuresi(d.start, d.end);
+
+    // Devriye bilgisini ekrana yaz
+    left.innerHTML = `
+      <div><strong>Güvenlik:</strong> ${d.userName}</div>
+      <div><strong>Tarih:</strong> ${d.displayDate}</div>
+      <div><strong>Başlangıç:</strong> ${d.start}</div>
+      <div><strong>Bitiş:</strong> ${d.end}</div>
+      <div style="margin-top:6px; font-weight:600; color:#f1c40f;">⏱ ${toplamSure}</div>
+      ${pointsHTML}
+    `;
+
+    // Durum divini oluştur
+    const statusDiv = document.createElement('div'); 
+    statusDiv.classList.add('devriye-status'); 
+    statusDiv.classList.add(d.status.toLowerCase().includes('tam') ? 'tam' : 'eksik'); 
+    statusDiv.innerHTML = `<span style="cursor:pointer;text-decoration:underline;">${d.status}</span>`;
+
+    // Sadece eksik devriyelerde modal aç
+    if(d.status.toLowerCase().includes('eksik')){
+      statusDiv.onclick = () => eksikDevriyeModalAc(d);
+    } else {
+      statusDiv.onclick = null;
+    }
 
     div.appendChild(left); 
     div.appendChild(statusDiv); 
@@ -489,15 +501,16 @@ if(d.status.toLowerCase().includes('eksik')){
   }
 }
 
+
+// 7️⃣ Türkiye tarihini al
 function getTurkeyToday(){
-  const now=new Date();
-  const utc=now.getTime() + (now.getTimezoneOffset()*60000);
-  const turkey=new Date(utc + 3*60*60*1000);
-  const mm=String(turkey.getMonth()+1).padStart(2,'0'), dd=String(turkey.getDate()).padStart(2,'0');
+  const now = new Date();
+  const utc = now.getTime() + (now.getTimezoneOffset()*60000);
+  const turkey = new Date(utc + 3*60*60*1000);
+  const mm = String(turkey.getMonth()+1).padStart(2,'0'), 
+        dd = String(turkey.getDate()).padStart(2,'0');
   return `${turkey.getFullYear()}-${mm}-${dd}`;
 }
-
-
 
 const eksikModal = document.getElementById("eksikDevriyeModal");
 const eksikText = document.getElementById("eksikDevriyeText");
