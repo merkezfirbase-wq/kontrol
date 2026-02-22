@@ -1,4 +1,4 @@
-const CACHE_NAME = "cga-pwa-v8"; // Her güncellemede artır
+const CACHE_NAME = "cga-pwa-v9"; // Her güncellemede artır
 const CORE_FILES = [
   "/",
   "/index.html",
@@ -56,5 +56,6 @@ self.addEventListener("message", (event) => {
     self.skipWaiting();
   }
 });
+
 
 
