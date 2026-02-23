@@ -1,13 +1,15 @@
-const CACHE_NAME = "cga-pwa-v9"; // Her güncellemede artır
+const CACHE_NAME = "cga-pwa-v10"; // Her güncellemede artır
 const CORE_FILES = [
   "/",
   "/index.html",
   "/site.html",
+   "/sitemobil.html",
   "/manifest.json",
   "/logo.png",
   "/icon-180.png",
   "/icon-192.png",
   "/icon-512.png"
+   
 ];
 
 // 🔹 INSTALL
@@ -56,6 +58,7 @@ self.addEventListener("message", (event) => {
     self.skipWaiting();
   }
 });
+
 
 
 
