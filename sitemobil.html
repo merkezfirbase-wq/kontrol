@@ -341,7 +341,12 @@ async function loadHistory(selectedDate) {
             const data = snap.val();
             let allRecords = [];
             for(const userKey in data) for(const recordKey in data[userKey]) allRecords.push(data[userKey][recordKey]);
-            allRecords.sort((a, b) => b.start.localeCompare(a.start));
+allRecords.sort((a, b) => {
+    // Tarihleri birleştirerek gerçek zamana göre sıralar
+    const timeA = new Date(`${selectedDate}T${a.start}`).getTime();
+    const timeB = new Date(`${selectedDate}T${b.start}`).getTime();
+    return timeB - timeA; // En yeni en üste
+});
 
             for(const d of allRecords) {
                 total++;
