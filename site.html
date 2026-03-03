@@ -356,10 +356,27 @@ async function loadHistory(selectedDate) {
             let allRecords = [];
             for(const userKey in data) for(const recordKey in data[userKey]) allRecords.push(data[userKey][recordKey]);
 allRecords.sort((a, b) => {
-    // Tarihleri birleştirerek gerçek zamana göre sıralar
-    const timeA = new Date(`${selectedDate}T${a.start}`).getTime();
-    const timeB = new Date(`${selectedDate}T${b.start}`).getTime();
-    return timeB - timeA; // En yeni en üste
+    const getSortableValue = (record) => {
+        // Saat ve dakikayı parçalayalım
+        const [h, m] = record.start.split(':').map(Number);
+        const [eh, em] = record.end.split(':').map(Number);
+        
+        // Normal şartlarda puanı dakika cinsinden hesapla (Örn: 10:15 = 615 puan)
+        let score = h * 60 + m;
+
+        // PROBLEMİ ÇÖZEN MANTIK: 
+        // Eğer bitiş saati (eh), başlangıç saatinden (h) küçükse 
+        // (Örn: Başlangıç 23:57, Bitiş 00:20), bu devriye dünden bugüne sarkmıştır.
+        if (eh < h) {
+            // Bu devriyeyi listenin en altına (geçmişe) itmek için 
+            // puanından bir tam gün (1440 dakika) çıkarıyoruz.
+            score -= 1440; 
+        }
+        return score;
+    };
+
+    // Büyük puanı (en güncel olanı) en üste getir
+    return getSortableValue(b) - getSortableValue(a);
 });
             for(const d of allRecords) {
                 total++;
@@ -382,20 +399,42 @@ allRecords.sort((a, b) => {
                 const formatliTarih = `${selectedDate.split('-').reverse().join('.')} (${gunler[dObj.getDay()]})`;
                 const pointsJson = encodeURIComponent(JSON.stringify(d.points || []));
 
-                const card = document.createElement('div');
-                card.className = 'patrol-card';
-                card.innerHTML = `
-                    <div class="status-badge" style="background: ${isEksik ? 'var(--neon-red)' : 'var(--neon-green)'};">
-                        ${isEksik ? 'Eksik Devriye' : 'Tam Devriye'}
-                    </div>
-                    <div class="patrol-info-row"><b>Güvenlik:</b> ${d.name}</div>
-                    <div class="patrol-info-row"><b>Tarih:</b> ${formatliTarih}</div>
-                    <div class="patrol-info-row"><b>Başlangıç:</b> ${d.start}</div>
-                    <div class="patrol-info-row"><b>Bitiş:</b> ${d.end}</div>
-                    <div class="total-time-row">⏱️ Toplam Devriye Süre: ${hesaplaSüre(d.start, d.end)} dakika</div>
-                    <button class="btn-detail" onclick="openModal('${pointsJson}')">🔍 Devriye Detaylarını Gör</button>
-                    ${isEksik ? `<div class="missing-box"><b style="color:#aaa;">Eksik Noktalar:</b> <span style="color:#fff;">${eksikListe.join(', ')}</span></div>` : ''}
-                `;
+             // --- TARİH VE NOT HESAPLAMA ---
+const [sh, sm] = d.start.split(':').map(Number);
+const [eh, em] = d.end.split(':').map(Number);
+const dundenSarkti = eh < sh;
+
+let geceNotu = '';
+if (dundenSarkti) {
+    const birOncekiGun = new Date(selectedDate);
+    birOncekiGun.setDate(birOncekiGun.getDate() - 1);
+    const bogFormatli = birOncekiGun.toLocaleDateString('tr-TR');
+    const bugunFormatli = new Date(selectedDate).toLocaleDateString('tr-TR');
+    
+    // Sürenin hemen üstünde görünecek açıklama metni
+    geceNotu = `<div style="color:var(--neon-gold); font-size:12px; margin-top:10px; font-weight:800; border-top:1px dashed rgba(255,204,0,0.3); padding-top:10px;">
+        ⚠️ ${bogFormatli} GECESİ BAŞLAYAN, ${bugunFormatli} GÜNÜNE SARKAN DEVRİYE
+    </div>`;
+}
+
+const card = document.createElement('div');
+card.className = 'patrol-card';
+card.innerHTML = `
+    <div class="status-badge" style="background: ${isEksik ? 'var(--neon-red)' : 'var(--neon-green)'};">
+        ${isEksik ? 'Eksik Devriye' : 'Tam Devriye'}
+    </div>
+    <div class="patrol-info-row"><b>Güvenlik:</b> ${d.name}</div>
+    <div class="patrol-info-row"><b>Tarih:</b> ${formatliTarih}</div>
+    <div class="patrol-info-row"><b>Başlangıç:</b> ${d.start}</div>
+    <div class="patrol-info-row"><b>Bitiş:</b> ${d.end}</div>
+    
+    ${geceNotu}
+    
+    <div class="total-time-row">⏱️ Toplam Devriye Süre: ${hesaplaSüre(d.start, d.end)} dakika</div>
+    
+    <button class="btn-detail" onclick="openModal('${pointsJson}')">🔍 Devriye Detaylarını Gör</button>
+    ${isEksik ? `<div class="missing-box"><b style="color:#aaa;">Eksik Noktalar:</b> <span style="color:#fff;">${eksikListe.join(', ')}</span></div>` : ''}
+`;
                 list.appendChild(card);
             }
         } else {
