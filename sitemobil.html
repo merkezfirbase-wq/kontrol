@@ -446,7 +446,7 @@ document.getElementById("btnUpdatePass").onclick = async () => {
     setTimeout(closeProfileModal, 1500);
 };
 
-const today = new Date().toISOString().split('T')[0];
+const today = new Date().toLocaleDateString('sv-SE');
 document.getElementById("filterDate").value = today;
 loadHistory(today);
 document.getElementById("filterDate").onchange = (e) => loadHistory(e.target.value);
