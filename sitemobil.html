@@ -342,11 +342,18 @@ async function loadHistory(selectedDate) {
             let allRecords = [];
             for(const userKey in data) for(const recordKey in data[userKey]) allRecords.push(data[userKey][recordKey]);
 allRecords.sort((a, b) => {
-    // Tarihleri birleştirerek gerçek zamana göre sıralar
-    const timeA = new Date(`${selectedDate}T${a.start}`).getTime();
-    const timeB = new Date(`${selectedDate}T${b.start}`).getTime();
-    return timeB - timeA; // En yeni en üste
-});
+                const getSortableValue = (record) => {
+                    const [h, m] = record.start.split(':').map(Number);
+                    const [eh, em] = record.end.split(':').map(Number);
+                    let score = h * 60 + m;
+                    // Gece yarısı geçildiyse puanı düşür, listenin sonuna (günün ilk saatlerine) gitsin
+                    if (eh < h) {
+                        score -= 1440; 
+                    }
+                    return score;
+                };
+                return getSortableValue(b) - getSortableValue(a);
+            });
 
             for(const d of allRecords) {
                 total++;
@@ -365,24 +372,51 @@ allRecords.sort((a, b) => {
                 }
 
                 const pointsJson = encodeURIComponent(JSON.stringify(d.points || []));
-               const card = document.createElement('div');
+// --- TARİH VE GECE SARKMASI HESAPLAMA ---
+const [sh, sm] = d.start.split(':').map(Number);
+const [eh, em] = d.end.split(':').map(Number);
+const dundenSarkti = eh < sh;
+
+// Gün ismini ekleyelim (Örn: Salı)
+const gunIsmi = new Date(selectedDate).toLocaleDateString('tr-TR', { weekday: 'long' });
+const formatliTarih = `${formatDateTurkish(selectedDate)} (${gunIsmi})`;
+
+let geceNotu = '';
+if (dundenSarkti) {
+    const birOncekiGun = new Date(selectedDate);
+    birOncekiGun.setDate(birOncekiGun.getDate() - 1);
+    const bogFormatli = birOncekiGun.toLocaleDateString('tr-TR');
+    const bugunFormatli = new Date(selectedDate).toLocaleDateString('tr-TR');
+    
+    geceNotu = `<div style="color:var(--neon-gold); font-size:11px; margin: 10px 0; font-weight:800; border-top:1px dashed rgba(255,204,0,0.2); padding-top:10px; line-height:1.4;">
+        ⚠️ ${bogFormatli} GECESİ BAŞLAYAN, ${bugunFormatli} GÜNÜNE SARKAN DEVRİYE
+    </div>`;
+}
+
+const card = document.createElement('div');
 card.className = 'patrol-card';
 card.innerHTML = `
-    <div class="patrol-info-row"><b>Güvenlik:</b> ${d.name}</div>
-    <div class="patrol-info-row"><b>Saat:</b> ${d.start} - ${d.end}</div>
+    <div class="patrol-info-row"><b>Güvenlik:</b> <span style="color:#fff; font-weight:700;">${d.name.toUpperCase()}</span></div>
     
-    <div class="total-time-row" style="margin-bottom: 12px; border-bottom: none;">
-        ⏱️ Toplam Süre: ${hesaplaSüre(d.start, d.end)} dakika
+    <div class="patrol-info-row"><b>Tarih:</b> <span style="color:#fff;">${formatliTarih}</span></div>
+    <div class="patrol-info-row"><b>Başlangıç:</b> <span style="color:#fff;">${d.start}</span></div>
+    <div class="patrol-info-row"><b>Bitiş:</b> <span style="color:#fff;">${d.end}</span></div>
+    
+    ${geceNotu}
+    
+    <div class="total-time-row" style="margin-bottom: 15px; border-bottom: none;">
+        ⏱️ Toplam Devriye Süre: ${hesaplaSüre(d.start, d.end)} dakika
     </div>
 
-    <div class="status-badge" style="position: static; transform: none; width: 100%; background: ${isEksik ? 'var(--neon-red)' : 'var(--neon-green)'};">
+    <div class="status-badge" style="background: ${isEksik ? 'var(--neon-red)' : 'var(--neon-green)'}; margin-bottom: 8px;">
         ${isEksik ? 'EKSİK DEVRİYE' : 'TAM DEVRİYE'}
     </div>
 
-    ${isEksik ? `<div class="missing-box" style="margin-top: 10px;"><b style="color:#aaa;">Eksik:</b> <span style="color:#fff;">${eksikListe.join(', ')}</span></div>` : ''}
+    ${isEksik ? `<div class="missing-box" style="margin-bottom: 10px; margin-top:0;"><b style="color:#aaa;">Eksik:</b> <span style="color:#fff;">${eksikListe.join(', ')}</span></div>` : ''}
 
-    <button class="btn-detail" onclick="openModal('${pointsJson}')">🔍 Devriye Detaylarını Gör</button>
+    <button class="btn-detail" onclick="openModal('${pointsJson}')" style="margin-top:0;">🔍 Devriye Detaylarını Gör</button>
 `;
+list.appendChild(card);
 list.appendChild(card);
             }
         } else {
