@@ -1,4 +1,4 @@
-const CACHE_NAME = "cga-pwa-v20"; // Versiyonu artırdık
+const CACHE_NAME = "cga-pwa-v21"; // Versiyonu artırdık
 
 const CORE_FILES = [
   "/",
@@ -95,3 +95,4 @@ self.addEventListener("message", (event) => {
     self.skipWaiting();
   }
 });
+
